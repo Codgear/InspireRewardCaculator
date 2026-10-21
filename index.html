@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>激励金预估模型</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --green: #059669;
+      --green-light: #d1fae5;
+      --orange: #ea580c;
+      --orange-light: #ffedd5;
+      --blue: #0ea5e9;
+      --blue-light: #e0f2fe;
+      --purple: #a855f7;
+      --purple-light: #f3e8ff;
+      --radius: 14px;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 24px 16px 60px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 560px 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+    .layout-left {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .layout-left .point-row {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .layout-right {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+    }
+    @media (max-width: 1000px) {
+      .layout { grid-template-columns: 1fr; }
+      .layout-left { position: static; max-height: none; overflow: visible; }
+    }
+
+    header {
+      text-align: left;
+      margin-bottom: 28px;
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    header p {
+      color: var(--muted);
+      margin-top: 6px;
+      font-size: 14px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    @media (max-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 999px;
+    }
+    .badge-green { background: var(--green-light); color: var(--green); }
+    .badge-orange { background: var(--orange-light); color: var(--orange); }
+    .badge-blue { background: var(--blue-light); color: var(--blue); }
+    .badge-purple { background: var(--purple-light); color: var(--purple); }
+
+    .card-sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #374151;
+    }
+    .field label .unit {
+      font-weight: 400;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .field input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 15px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+    }
+
+    .gameplay {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    @media (max-width: 720px) {
+      .gameplay { grid-template-columns: 1fr; }
+    }
+
+    .type-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .type-btn {
+      padding: 10px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+      transition: all .15s;
+    }
+    .type-btn.active-green {
+      border-color: var(--green);
+      background: var(--green-light);
+      color: var(--green);
+    }
+    .type-btn.active-orange {
+      border-color: var(--orange);
+      background: var(--orange-light);
+      color: var(--orange);
+    }
+    .type-btn.active-blue {
+      border-color: var(--blue);
+      background: var(--blue-light);
+      color: var(--blue);
+    }
+    .type-btn.active-purple {
+      border-color: var(--purple);
+      background: var(--purple-light);
+      color: var(--purple);
+    }
+
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 13px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-outline {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+
+    .result-summary {
+      margin-top: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .param-line {
+      display: grid;
+      grid-template-columns: 120px 1fr 0.9fr 1.7fr;
+      gap: 14px;
+      align-items: center;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+    }
+    .param-line .tag {
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .param-line .tag.green { color: var(--green); }
+    .param-line .tag.orange { color: var(--orange); }
+    .param-line .tag.blue { color: var(--blue); }
+    .param-line .tag.purple { color: var(--purple); }
+    .param-item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+    }
+    .param-item .label {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .param-item .value {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .param-item .value.green { color: var(--green); }
+    .param-item .value.orange { color: var(--orange); }
+    .param-item .value.blue { color: var(--blue); }
+    .param-item .value.purple { color: var(--purple); }
+    @media (max-width: 720px) {
+      .param-line { grid-template-columns: 1fr; gap: 8px; }
+    }
+
+    .chart-wrap {
+      margin-top: 18px;
+      position: relative;
+      height: 420px;
+    }
+    .chart-wrap canvas { display: block; }
+
+    .point-row {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr auto;
+      gap: 16px;
+      align-items: end;
+    }
+    @media (max-width: 720px) { .point-row { grid-template-columns: 1fr; } }
+
+    .point-result {
+      margin-top: 16px;
+      padding: 16px 18px;
+      border-radius: 10px;
+      background: #f9fafb;
+      border: 1px dashed var(--border);
+      display: none;
+    }
+    .point-result.show { display: block; }
+    .point-result .big { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+    .point-result .big.green { color: var(--green); }
+    .point-result .big.orange { color: var(--orange); }
+    .point-result .big.blue { color: var(--blue); }
+    .point-result .big.purple { color: var(--purple); }
+    .point-result .meta { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+    .note {
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .bulk-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .bulk-row input[type="file"] {
+      flex: 1;
+      min-width: 200px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .bulk-summary {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .bulk-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .bulk-table th, .bulk-table td {
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+    }
+    .bulk-table th {
+      background: #f9fafb;
+      font-weight: 600;
+    }
+    .bulk-table td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .bulk-errors {
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--orange);
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>激励金预估模型</h1>
+      <p>输入参数，演算激励金随有效用户数的变化曲线，并预估指定玩法的激励金</p>
+    </header>
+
+    <!-- 左右布局：左参数，右曲线 -->
+    <div class="layout">
+      <div class="layout-left">
+
+    <!-- 1. 参数输入 -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title" style="color: #059669;">
+          鼓励类参数
+        </div>
+        <div class="card-sub">输入后自动刷新曲线</div>
+        <div class="field">
+          <label>单个地图最高激励金 Mmax1 <span class="unit">（元）</span></label>
+          <input type="number" id="mmax1" value="3000" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+
+        <div class="field">
+          <label>有效用户数达到 X1 时 <span class="unit">（千人）</span></label>
+          <input type="number" id="x1" value="10" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+        <div class="field">
+          <label>可获得奖金 Y1 <span class="unit">（元）</span></label>
+          <input type="number" id="y1" value="30" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="color: #ea580c;">
+          非鼓励类参数
+        </div>
+        <div class="card-sub">输入后自动刷新曲线</div>
+        <div class="field">
+          <label>单个地图最高激励金 Mmax2 <span class="unit">（元）</span></label>
+          <input type="number" id="mmax2" value="3000" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+
+        <div class="field">
+          <label>有效用户数达到 X2 时 <span class="unit">（千人）</span></label>
+          <input type="number" id="x2" value="10" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+        <div class="field">
+          <label>可获得奖金 Y2 <span class="unit">（元）</span></label>
+          <input type="number" id="y2" value="15" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="color: #0ea5e9;">
+          鼓励类(精英团)参数
+        </div>
+        <div class="card-sub">输入后自动刷新曲线</div>
+        <div class="field">
+          <label>单个地图最高激励金 Mmax3 <span class="unit">（元）</span></label>
+          <input type="number" id="mmax3" value="9000" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+
+        <div class="field">
+          <label>有效用户数达到 X3 时 <span class="unit">（千人）</span></label>
+          <input type="number" id="x3" value="10" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+        <div class="field">
+          <label>可获得奖金 Y3 <span class="unit">（元）</span></label>
+          <input type="number" id="y3" value="90" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="color: #a855f7;">
+          非鼓励类(精英团)参数
+        </div>
+        <div class="card-sub">输入后自动刷新曲线</div>
+        <div class="field">
+          <label>单个地图最高激励金 Mmax4 <span class="unit">（元）</span></label>
+          <input type="number" id="mmax4" value="9000" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+
+        <div class="field">
+          <label>有效用户数达到 X4 时 <span class="unit">（千人）</span></label>
+          <input type="number" id="x4" value="10" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+        <div class="field">
+          <label>可获得奖金 Y4 <span class="unit">（元）</span></label>
+          <input type="number" id="y4" value="45" step="1" min="0" oninput="scheduleRecalc()">
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 单点激励金预估 -->
+    <div class="card">
+      <div class="card-title">单点激励金预估</div>
+      <div class="card-sub">输入玩法有效用户数后立即刷新结果</div>
+      <div class="point-row">
+        <div class="field" style="margin-bottom:0;">
+          <label>玩法有效用户数 X <span class="unit">（万人）</span></label>
+          <input type="number" id="gameX" value="100" step="0.1" min="0" oninput="runPointEstimate()">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>激励类型</label>
+          <div class="type-toggle">
+            <button class="type-btn active-green" id="btnGreen" onclick="setType('green')">鼓励类</button>
+            <button class="type-btn" id="btnOrange" onclick="setType('orange')">非鼓励类</button>
+            <button class="type-btn" id="btnGreenElite" onclick="setType('greenElite')">鼓励类(精英团)</button>
+            <button class="type-btn" id="btnOrangeElite" onclick="setType('orangeElite')">非鼓励类(精英团)</button>
+          </div>
+        </div>
+      </div>
+      <div class="point-result" id="pointResult"></div>
+    </div>
+
+      </div><!-- /layout-left -->
+
+      <div class="layout-right">
+
+    <!-- 2. 激励金变化曲线 -->
+    <div class="card">
+      <div class="card-title">激励金变化曲线</div>
+      <div class="card-sub">横轴单位：万人 · 实线为所选类型</div>
+      <div class="chart-wrap">
+        <canvas id="curveChart"></canvas>
+      </div>
+      <div style="text-align:right; margin-top:12px;">
+        <button class="btn btn-outline" onclick="exportExcel()">导出 Excel</button>
+      </div>
+    </div>
+
+    <!-- 3. 中间计算参数 -->
+    <div class="result-summary" id="summaryGrid" style="display:none;"></div>
+
+    <!-- 3.5 激励金倍数差异曲线 -->
+    <div class="card">
+      <div class="card-title">激励金倍数差异曲线</div>
+      <div class="card-sub">同等有效用户数下，不同类别的激励金倍数对比 · 横轴单位：万人</div>
+      <div class="chart-wrap">
+        <canvas id="ratioChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 4. 离线数据批量预估 -->
+    <div class="card">
+      <div class="card-title">离线数据批量预估</div>
+      <div class="card-sub">上传 CSV / Excel 文件，需包含字段：作者UID、玩法ID、玩法名、激励类型、有效用户数（单位：人）</div>
+      <div class="bulk-row">
+        <input type="file" id="bulkFile" accept=".csv,.xlsx,.xls" onchange="handleBulkFile(event)">
+        <button class="btn btn-primary" id="bulkExportBtn" style="display:none;" onclick="exportBulk()">导出计算结果</button>
+      </div>
+      <div id="bulkResult"></div>
+    </div>
+
+      </div><!-- /layout-right -->
+
+    </div><!-- /layout -->
+  </div>
+
+  <script>
+    // ==================== 核心计算算法（复刻自迭代计算脚本） ====================
+    const K = 1e-7; // 增长率/衰减系数常数
+
+    // 计算有效用户数（分段限高处理）
+    function calcEffectiveX(X_raw, Xmax) {
+      if (X_raw <= 0.5 * Xmax) return X_raw;
+      const exponent = K * (X_raw - 0.5 * Xmax);
+      return 0.5 * Xmax * (2 - Math.exp(-exponent));
+    }
+
+    // 计算激励金 M
+    function calcM(X_raw, Xmax, a) {
+      const Xeff = calcEffectiveX(X_raw, Xmax);
+      if (Xeff <= 0) return 0;
+      return Math.log10(Xeff + 1) * Math.sqrt(a * Xeff) * 1000;
+    }
+
+    // 函数1：根据 Mmax 和 a，二分查找 Xmax（使 M(Xmax)=Mmax）
+    function calculateXmax(Mmax, a, tolerance = 1e-7, maxIter = 2000) {
+      if (a <= 0 || a > 15) throw new Error('扶持系数a必须在0到15之间');
+      if (Mmax <= 0) throw new Error('Mmax必须大于0');
+
+      let lower = 0;
+      let upper = 1;
+      // 找到合适上界：不断加倍直到 M 超过 Mmax
+      while (calcM(upper, upper, a) < Mmax && upper < 1e12) {
+        upper *= 2;
+      }
+      if (upper >= 1e12) throw new Error('无法找到合适的Xmax上界，请检查参数');
+
+      for (let i = 0; i < maxIter; i++) {
+        const mid = (lower + upper) / 2;
+        const M = calcM(mid, mid, a);
+        if (Math.abs(M - Mmax) < tolerance) return mid;
+        if (M < Mmax) lower = mid; else upper = mid;
+      }
+      return (lower + upper) / 2;
+    }
+
+    // 函数2：根据 Xmax 和 (Xa, Ma)，二分查找最佳扶持系数 a（0<a<=15）
+    function calculateOptimalA(Xmax, Xa, Ma, precision = 1e-6, maxIter = 1000) {
+      if (Xmax <= 0) throw new Error('Xmax必须大于0');
+      if (Xa <= 0) throw new Error('Xa必须大于0');
+      if (Ma <= 0) throw new Error('Ma必须大于0');
+
+      const Xadj = calcEffectiveX(Xa, Xmax);
+
+      function objective(a) {
+        if (Xadj <= 0 || a <= 0) return -Ma;
+        return Math.log10(Xadj + 1) * Math.sqrt(a * Xadj) * 1000 - Ma;
+      }
+
+      let aLow = 1e-6;
+      let aHigh = 15.0;
+      let fLow = objective(aLow);
+      let fHigh = objective(aHigh);
+
+      if (Math.abs(fLow) < precision) return aLow;
+      if (Math.abs(fHigh) < precision) return aHigh;
+
+      // 两端同号：解不在区间内，返回边界值
+      if (fLow * fHigh > 0) {
+        return (fLow > 0 && fHigh > 0) ? aLow : aHigh;
+      }
+
+      let iter = 0;
+      while (iter < maxIter) {
+        const aMid = (aLow + aHigh) / 2;
+        const fMid = objective(aMid);
+        if (Math.abs(fMid) < precision || (aHigh - aLow) < precision) return aMid;
+        if (fMid * fLow < 0) { aHigh = aMid; fHigh = fMid; }
+        else { aLow = aMid; fLow = fMid; }
+        iter++;
+      }
+      return (aLow + aHigh) / 2;
+    }
+
+    // 迭代求解 Xmax 和 a（solve_system）
+    function solveSystem(Mmax, Xa, Ma, maxIter = 1000, tolerance = 1e-6) {
+      let aCurrent = 1.0;
+      let XmaxCurrent = 0;
+      for (let i = 0; i < maxIter; i++) {
+        XmaxCurrent = calculateXmax(Mmax, aCurrent);
+        const aNew = calculateOptimalA(XmaxCurrent, Xa, Ma);
+        if (Math.abs(aNew - aCurrent) < tolerance) {
+          return { Xmax: XmaxCurrent, a: aNew };
+        }
+        aCurrent = aNew;
+      }
+      XmaxCurrent = calculateXmax(Mmax, aCurrent);
+      return { Xmax: XmaxCurrent, a: aCurrent };
+    }
+
+    // ==================== 类别定义 ====================
+    const CATEGORIES = [
+      { id: 'green',       name: '鼓励类',           cls: 'green',  color: '#059669', fill: 'rgba(5,150,105,0.08)',  btnId: 'btnGreen',       mmaxId: 'mmax1', xId: 'x1', yId: 'y1' },
+      { id: 'orange',      name: '非鼓励类',         cls: 'orange', color: '#ea580c', fill: 'rgba(234,88,12,0.08)',   btnId: 'btnOrange',      mmaxId: 'mmax2', xId: 'x2', yId: 'y2' },
+      { id: 'greenElite',  name: '鼓励类(精英团)',   cls: 'blue',   color: '#0ea5e9', fill: 'rgba(14,165,233,0.08)',  btnId: 'btnGreenElite',  mmaxId: 'mmax3', xId: 'x3', yId: 'y3' },
+      { id: 'orangeElite', name: '非鼓励类(精英团)', cls: 'purple', color: '#a855f7', fill: 'rgba(168,85,247,0.08)',  btnId: 'btnOrangeElite', mmaxId: 'mmax4', xId: 'x4', yId: 'y4' },
+    ];
+    function catById(id) { return CATEGORIES.find(c => c.id === id); }
+
+    // 倍数曲线定义（分子类别 / 分母类别）
+    const RATIO_DEFS = [
+      { label: '鼓励类(精英团) / 鼓励类', num: 'greenElite', den: 'green' },
+      { label: '非鼓励类(精英团) / 非鼓励类', num: 'orangeElite', den: 'orange' },
+      { label: '鼓励类 / 非鼓励类', num: 'green', den: 'orange' },
+      { label: '鼓励类(精英团) / 非鼓励类(精英团)', num: 'greenElite', den: 'orangeElite' },
+    ];
+    const RATIO_COLORS = ['#2563eb', '#db2777', '#059669', '#9333ea'];
+
+    // ==================== 交互逻辑 ====================
+    let selectedType = 'green';
+    let curveState = null;   // { results: {id -> {Xmax, a, curve}}, params: {id -> {mmax, m, x, y}} }
+    let pointState = null;   // { x, type, m }
+
+    function setType(t) {
+      selectedType = t;
+      for (const c of CATEGORIES) {
+        document.getElementById(c.btnId).className =
+          'type-btn' + (t === c.id ? ' active-' + c.cls : '');
+      }
+      if (curveState && pointState) {
+        const r = curveState.results[t];
+        pointState.type = t;
+        pointState.m = calcM(pointState.x * 10, r.Xmax, r.a);
+        renderPointResult();
+      }
+      renderChart();
+    }
+
+    function readNum(id) {
+      const v = parseFloat(document.getElementById(id).value);
+      return isNaN(v) ? 0 : v;
+    }
+
+    function fmt(n, digits = 0) {
+      return n.toLocaleString('zh-CN', {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+      });
+    }
+
+    // 横轴配置：线性刻度。公式中 X 单位「千人」，横轴展示单位「万人」（1万人 = 10千人）
+    const X_MIN_K = 0.1;    // 千人：0.1千 = 100人
+    const X_MIN_WAN = X_MIN_K / 10; // 0.01 万人
+    const X_MAX_K_DEFAULT = 10000;  // 千人：默认 1000 万人
+    const X_MAX_WAN_DEFAULT = X_MAX_K_DEFAULT / 10; // 1000 万人
+    // 动态横轴最大值（万人）：recalc 中按 1.1 × max(各类别达到最高激励金的实际有效用户数) 更新
+    let xAxisMaxWan = X_MAX_WAN_DEFAULT;
+
+    // 生成一条曲线的采样点（线性，x 存储为「万人」，y 用「千人」代入公式计算）
+    function sampleCurve(Xmax, a, N = 800) {
+      const xMaxK = xAxisMaxWan * 10; // 千人
+      const data = [];
+      for (let i = 0; i <= N; i++) {
+        const xK = X_MIN_K + (xMaxK - X_MIN_K) * i / N; // 千人
+        data.push({ x: xK / 10, y: calcM(xK, Xmax, a) });
+      }
+      return data;
+    }
+
+    // 解析并校验参数；silent=true 时静默返回 null
+    function parseParams(silent) {
+      const p = {};
+      let valid = true;
+      for (const c of CATEGORIES) {
+        const mmax = readNum(c.mmaxId), x = readNum(c.xId), y = readNum(c.yId);
+        p[c.id] = { mmax, x, y };
+        if (!(mmax > 0 && x > 0 && y > 0 && y <= mmax)) valid = false;
+      }
+      if (!valid && !silent) {
+        alert('请填写有效参数（Mmax、X、Y 均需大于 0，且 Y 不能大于 Mmax）');
+      }
+      return valid ? p : null;
+    }
+
+    // 自动计算并绘制曲线
+    function recalc() {
+      const p = parseParams(true);
+      if (!p) return;
+      try {
+        // 先求解所有类别的 Xmax 与扶持系数 a
+        const solved = {};
+        for (const c of CATEGORIES) {
+          const r = solveSystem(p[c.id].mmax, p[c.id].x, p[c.id].y);
+          solved[c.id] = { Xmax: r.Xmax, a: r.a };
+        }
+
+        // 动态横轴最大值 = 1.1 × max(各类别达到最高激励金的实际有效用户数)（万人）
+        let maxReachWan = 0;
+        for (const c of CATEGORIES) {
+          maxReachWan = Math.max(maxReachWan, solved[c.id].Xmax / 20);
+        }
+        xAxisMaxWan = 1.1 * maxReachWan;
+
+        const results = {};
+        for (const c of CATEGORIES) {
+          const s = solved[c.id];
+          results[c.id] = { Xmax: s.Xmax, a: s.a, curve: sampleCurve(s.Xmax, s.a) };
+        }
+        curveState = { results, params: p };
+
+        renderSummary();
+        renderChart();
+        renderRatioChart();
+
+        if (pointState) {
+          const r = results[pointState.type];
+          pointState.m = calcM(pointState.x * 10, r.Xmax, r.a);
+          renderPointResult();
+        }
+      } catch (e) {
+        console.warn('曲线计算失败：' + e.message);
+      }
+    }
+
+    let recalcTimer = null;
+    function scheduleRecalc() {
+      clearTimeout(recalcTimer);
+      recalcTimer = setTimeout(recalc, 250);
+    }
+
+    // 单点预估
+    function runPointEstimate() {
+      if (!curveState) recalc();
+      if (!curveState) { alert('请先填写有效参数'); return; }
+      let gameX = readNum('gameX'); // 万人
+      if (gameX < 0) gameX = 0;
+      const r = curveState.results[selectedType];
+      pointState = { x: gameX, type: selectedType, m: calcM(gameX * 10, r.Xmax, r.a) }; // 换算为千人代入公式
+      renderPointResult();
+    }
+
+    function renderSummary() {
+      const el = document.getElementById('summaryGrid');
+      el.innerHTML = CATEGORIES.map(c => {
+        const r = curveState.results[c.id];
+        return `
+        <div class="param-line">
+          <div class="tag ${c.cls}">${c.name}</div>
+          <div class="param-item">
+            <span class="label">Xmax（千人）</span>
+            <span class="value ${c.cls}">${fmt(r.Xmax, 6)}</span>
+          </div>
+          <div class="param-item">
+            <span class="label">扶持系数 a</span>
+            <span class="value ${c.cls}">${r.a.toFixed(10)}</span>
+          </div>
+          <div class="param-item">
+            <span class="label">达到最高激励金的实际有效用户数（万人）</span>
+            <span class="value ${c.cls}">${fmt(r.Xmax / 20, 2)}</span>
+          </div>
+        </div>`;
+      }).join('');
+      el.style.display = 'flex';
+    }
+
+    function renderPointResult() {
+      const el = document.getElementById('pointResult');
+      if (!pointState) { el.classList.remove('show'); return; }
+      const c = catById(pointState.type);
+      el.innerHTML = `
+        <div class="big ${c.cls}">¥ ${fmt(pointState.m, 2)}</div>
+        <div class="meta">有效用户数 X = ${fmt(pointState.x, 2)} 万人 · ${c.name}</div>
+      `;
+      el.classList.add('show');
+    }
+
+    let chartInstance = null;
+    function renderChart() {
+      if (!curveState) return;
+      const canvas = document.getElementById('curveChart');
+
+      const datasets = CATEGORIES.map(c => {
+        const isSel = selectedType === c.id;
+        const r = curveState.results[c.id];
+        return {
+          label: c.name,
+          data: r.curve,
+          Xmax: r.Xmax,
+          a: r.a,
+          borderColor: c.color,
+          backgroundColor: c.fill,
+          fill: true,
+          tension: 0.25,
+          pointRadius: 0,
+          borderWidth: isSel ? 3.5 : 2
+        };
+      });
+
+      const config = {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { usePointStyle: true, boxWidth: 8, font: { size: 13 } } },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) {
+                  const xWan = ctx.parsed.x;
+                  const xLabel = xWan < 1 ? xWan.toFixed(2) : fmt(xWan);
+                  const m = calcM(xWan * 10, ctx.dataset.Xmax, ctx.dataset.a);
+                  return ctx.dataset.label + ': X=' + xLabel + ' 万人, M=' + fmt(m, 2) + ' 元';
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'linear',
+              min: X_MIN_WAN,
+              max: xAxisMaxWan,
+              title: { display: true, text: '有效用户数（万人）', font: { size: 13 } },
+              ticks: { callback: function (v) { return v < 1 ? v.toFixed(2) : fmt(v); } }
+            },
+            y: {
+              title: { display: true, text: '激励金 M（元）', font: { size: 13 } },
+              ticks: { callback: function (v) { return fmt(v); } }
+            }
+          }
+        }
+      };
+
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(canvas, config);
+    }
+
+    // ==================== 倍数差异曲线 ====================
+    let ratioChartInstance = null;
+    function renderRatioChart() {
+      if (!curveState) return;
+      const canvas = document.getElementById('ratioChart');
+      const n = curveState.results.green.curve.length;
+
+      const datasets = RATIO_DEFS.map((d, idx) => {
+        const numCurve = curveState.results[d.num].curve;
+        const denCurve = curveState.results[d.den].curve;
+        const data = [];
+        for (let i = 0; i < n; i++) {
+          const den = denCurve[i].y;
+          data.push({ x: numCurve[i].x, y: den > 0 ? numCurve[i].y / den : null });
+        }
+        return {
+          label: d.label,
+          data,
+          borderColor: RATIO_COLORS[idx],
+          borderWidth: 2,
+          fill: false,
+          tension: 0.25,
+          pointRadius: 0,
+          spanGaps: true
+        };
+      });
+
+      // 添加「倍数 = 1」的基准参考线（图例中隐藏）
+      datasets.push({
+        label: '倍数=1 基准',
+        data: [{ x: X_MIN_WAN, y: 1 }, { x: xAxisMaxWan, y: 1 }],
+        borderColor: '#9ca3af',
+        borderWidth: 1,
+        borderDash: [5, 5],
+        pointRadius: 0,
+        fill: false
+      });
+
+      const config = {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'nearest', intersect: false },
+          plugins: {
+            legend: { labels: { usePointStyle: true, boxWidth: 8, font: { size: 12 }, filter: function (item) { return item.text !== '倍数=1 基准'; } } },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) {
+                  const xWan = ctx.parsed.x;
+                  const xLabel = xWan < 1 ? xWan.toFixed(2) : fmt(xWan);
+                  return ctx.dataset.label + ': X=' + xLabel + ' 万人, 倍数=' + fmt(ctx.parsed.y, 2) + '×';
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'linear',
+              min: X_MIN_WAN,
+              max: xAxisMaxWan,
+              title: { display: true, text: '有效用户数（万人）', font: { size: 13 } },
+              ticks: { callback: function (v) { return v < 1 ? v.toFixed(2) : fmt(v); } }
+            },
+            y: {
+              title: { display: true, text: '激励金倍数', font: { size: 13 } },
+              ticks: { callback: function (v) { return fmt(v, 2); } }
+            }
+          }
+        }
+      };
+
+      if (ratioChartInstance) ratioChartInstance.destroy();
+      ratioChartInstance = new Chart(canvas, config);
+    }
+
+    // ==================== 导出 Excel ====================
+    function exportExcel() {
+      if (!curveState) {
+        alert('请先填写参数生成曲线，再导出 Excel');
+        return;
+      }
+      const p = curveState.params;
+
+      // Sheet1: 参数组合
+      const sheet1 = [
+        ['激励金预估模型 - 参数组合'],
+        [],
+        ['参数项', '数值']
+      ];
+      for (const c of CATEGORIES) {
+        sheet1.push([c.name + ' - 单个地图最高激励金 Mmax', p[c.id].mmax]);
+        sheet1.push([c.name + ' - 有效用户数达到 X', p[c.id].x]);
+        sheet1.push([c.name + ' - 可获得奖金 Y', p[c.id].y]);
+      }
+      if (pointState) {
+        sheet1.push(['玩法有效用户数 X（万人）', pointState.x]);
+        sheet1.push(['选择的激励类型', catById(pointState.type).name]);
+        sheet1.push(['单点预估激励金 M', pointState.m]);
+      }
+
+      // Sheet2: 中间计算参数
+      const names = CATEGORIES.map(c => c.name);
+      const sheet2 = [
+        ['激励金预估模型 - 中间计算参数'],
+        [],
+        ['指标', ...names],
+        ['扶持系数 a', ...CATEGORIES.map(c => curveState.results[c.id].a)],
+        ['最大有效用户数 Xmax（千人）', ...CATEGORIES.map(c => Number(curveState.results[c.id].Xmax.toFixed(6)))],
+        ['要达到最高激励金的实际有效用户数（万人）', ...CATEGORIES.map(c => curveState.results[c.id].Xmax / 20)],
+        ['增长率 k', ...CATEGORIES.map(() => K)]
+      ];
+      if (pointState) {
+        const row = ['单点预估激励金 M', ...CATEGORIES.map(c => c.id === pointState.type ? pointState.m : '')];
+        sheet2.push(row);
+      }
+
+      // Sheet3: 曲线数据（x 单位「万人」）
+      const sheet3 = [['有效用户数 X（万人）', ...names.map(n => n + '激励金 M')]];
+      const n = curveState.results.green.curve.length;
+      for (let i = 0; i < n; i++) {
+        sheet3.push([
+          curveState.results.green.curve[i].x,
+          ...CATEGORIES.map(c => curveState.results[c.id].curve[i].y)
+        ]);
+      }
+
+      // Sheet4: 倍数曲线数据
+      const sheet4 = [['有效用户数 X（万人）', ...RATIO_DEFS.map(d => d.label + '（倍数）')]];
+      for (let i = 0; i < n; i++) {
+        const row = [curveState.results.green.curve[i].x];
+        for (const d of RATIO_DEFS) {
+          const den = curveState.results[d.den].curve[i].y;
+          row.push(den > 0 ? curveState.results[d.num].curve[i].y / den : null);
+        }
+        sheet4.push(row);
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet1), '参数组合');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet2), '中间计算参数');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet3), '曲线数据');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet4), '倍数曲线');
+      XLSX.writeFile(wb, '激励金预估结果.xlsx');
+    }
+
+    // ==================== 离线数据批量预估 ====================
+    let bulkResults = []; // [{ uid, id, playName, type, typeName, users, m }]
+    let bulkFileName = ''; // 上传文件去除扩展名后的名称
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (ch) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+      });
+    }
+
+    // 将上传的「激励类型」文本映射到类别 id
+    function mapBulkType(name) {
+      const s = String(name || '').trim();
+      if (!s) return null;
+      if (s.includes('精英')) return s.includes('非鼓励') ? 'orangeElite' : 'greenElite';
+      if (s.includes('非鼓励')) return 'orange';
+      if (s.includes('鼓励')) return 'green';
+      const c = CATEGORIES.find(c => c.name === s);
+      return c ? c.id : null;
+    }
+
+    function handleBulkFile(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      if (!curveState) { alert('请先填写参数生成曲线，再上传数据'); return; }
+      bulkFileName = file.name.replace(/\.[^.]+$/, '');
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+          processBulkRows(rows);
+        } catch (err) {
+          alert('文件解析失败：' + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function processBulkRows(rows) {
+      if (!rows || rows.length < 2) { alert('文件为空或缺少数据行'); return; }
+      const header = rows[0].map(h => String(h).trim());
+      const idx = {
+        uid: header.findIndex(h => h.includes('作者UID')),
+        id: header.findIndex(h => h.includes('玩法ID')),
+        playName: header.findIndex(h => h.includes('玩法名')),
+        type: header.findIndex(h => h.includes('激励类型')),
+        users: header.findIndex(h => h.includes('有效用户数'))
+      };
+      if (idx.uid < 0 || idx.id < 0 || idx.playName < 0 || idx.type < 0 || idx.users < 0) {
+        alert('表头缺少必要字段，请确认包含：作者UID、玩法ID、玩法名、激励类型、有效用户数（单位：人）');
+        return;
+      }
+
+      const results = [];
+      const errors = [];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const uid = String(row[idx.uid] == null ? '' : row[idx.uid]).trim();
+        const id = String(row[idx.id] == null ? '' : row[idx.id]).trim();
+        const playName = String(row[idx.playName] == null ? '' : row[idx.playName]).trim();
+        const typeName = String(row[idx.type] == null ? '' : row[idx.type]).trim();
+        const usersRaw = row[idx.users];
+        const users = parseFloat(usersRaw);
+        if (uid === '' && id === '' && playName === '' && typeName === '' && (usersRaw === '' || usersRaw == null)) continue; // 跳过空行
+        const typeId = mapBulkType(typeName);
+        if (!typeId) { errors.push('第 ' + (i + 1) + ' 行：无法识别激励类型「' + typeName + '」'); continue; }
+        if (isNaN(users) || users < 0) { errors.push('第 ' + (i + 1) + ' 行：有效用户数无效「' + usersRaw + '」'); continue; }
+        const r = curveState.results[typeId];
+        const m = calcM(users / 1000, r.Xmax, r.a); // 人 → 千人
+        results.push({ uid, id, playName, type: typeId, typeName: catById(typeId).name, users, m });
+      }
+
+      if (results.length === 0) {
+        alert('没有成功解析出任何数据行。\n' + errors.slice(0, 5).join('\n'));
+        return;
+      }
+      bulkResults = results;
+      renderBulkResult(results, errors);
+    }
+
+    function renderBulkResult(results, errors) {
+      const el = document.getElementById('bulkResult');
+      let html = '<div class="bulk-summary">共成功解析 <b>' + results.length + '</b> 条记录';
+      if (errors.length) html += '，跳过 ' + errors.length + ' 条';
+      html += '</div>';
+      html += '<table class="bulk-table"><thead><tr><th>作者UID</th><th>玩法ID</th><th>玩法名</th><th>激励类型</th><th class="num">有效用户数（人）</th><th class="num">预估激励金（元）</th></tr></thead><tbody>';
+      for (const r of results) {
+        html += '<tr><td>' + escapeHtml(r.uid) + '</td><td>' + escapeHtml(r.id) + '</td><td>' + escapeHtml(r.playName) + '</td><td>' + r.typeName + '</td><td class="num">' + fmt(r.users, 0) + '</td><td class="num">' + fmt(r.m, 2) + '</td></tr>';
+      }
+      html += '</tbody></table>';
+      if (errors.length) {
+        html += '<div class="bulk-errors">' + errors.slice(0, 10).map(escapeHtml).join('<br>') + (errors.length > 10 ? '<br>…共 ' + errors.length + ' 条错误' : '') + '</div>';
+      }
+      el.innerHTML = html;
+      document.getElementById('bulkExportBtn').style.display = 'inline-block';
+    }
+
+    function exportBulk() {
+      if (!bulkResults.length) { alert('请先上传并计算数据'); return; }
+      const p = curveState.params;
+
+      // Sheet1: 不同类型的激励金参数
+      const sheet1 = [
+        ['激励类型', '单个地图最高激励金 Mmax（元）', '有效用户数达到 X（千人）', '可获得奖金 Y（元）', '扶持系数 a', '最大有效用户数 Xmax（千人）']
+      ];
+      for (const c of CATEGORIES) {
+        sheet1.push([
+          c.name,
+          p[c.id].mmax,
+          p[c.id].x,
+          p[c.id].y,
+          curveState.results[c.id].a,
+          Number(curveState.results[c.id].Xmax.toFixed(6))
+        ]);
+      }
+
+      // Sheet2: 计算结果
+      const sheet2 = [
+        ['作者UID', '玩法ID', '玩法名', '激励类型', '有效用户数（单位：人）', '预估激励金（单位：元）']
+      ];
+      for (const r of bulkResults) {
+        sheet2.push([r.uid, r.id, r.playName, r.typeName, r.users, Number(r.m.toFixed(2))]);
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet1), '激励金参数');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet2), '计算结果');
+      XLSX.writeFile(wb, (bulkFileName || '离线数据批量预估') + '_计算结果.xlsx');
+    }
+
+    // 打开页面时自动绘制曲线，并做一次默认单点预估
+    window.addEventListener('load', function () {
+      recalc();
+      runPointEstimate();
+    });
+  </script>
+</body>
+</html>
